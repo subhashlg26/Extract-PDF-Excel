@@ -39,7 +39,7 @@ public class MyPair<L, R> extends Pair
         this.r = r;
     }
 
-    @Override
+//    @Override
     public int compareTo(Object o)
     {
         return 0;

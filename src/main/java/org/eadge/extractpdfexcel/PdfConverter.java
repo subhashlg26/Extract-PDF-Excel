@@ -20,6 +20,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -121,6 +123,30 @@ public class PdfConverter
             throw new FileNotFoundException(path);
         }
     }
+    
+    public static ExtractedData extractFromFile(InputStream sourcePdfIPStream,
+            TextBlockIdentifier textBlockIdentifier) throws IOException
+		{
+			
+	    	// Create Pdf Extractor using path location    	
+    		PdfReader pdf = new PdfReader(sourcePdfIPStream);			
+			
+			// Pdf is readable
+			// Create parser to extract data from pdf
+			PdfParser parser = new PdfParser(pdf, textBlockIdentifier);
+			
+			// Extract all data
+			parser.readAllPage();
+			
+			if (textBlockIdentifier.cleanDuplicated)
+				parser.cleanDuplicatedData();
+			if (textBlockIdentifier.mergeFactor > 1.0)
+				parser.mergeBlocks(textBlockIdentifier.mergeFactor);
+			
+			parser.close();
+			// return extractedData extracted with parser
+			return parser.getExtractedData();
+		}
 
     /**
      * Remove duplicated blocks
@@ -424,6 +450,36 @@ public class PdfConverter
 
         return sheets;
     }
+    
+    public static ArrayList<HSSFSheet> createExcelSheets(InputStream sourcePdfIPStream,
+            HSSFWorkbook workbook,
+            TextBlockIdentifier textBlockIdentifier,
+             int lineAxis,
+             int columnAxis, double lineFactor,
+                              double columnFactor) throws IOException
+	{
+		ArrayList<HSSFSheet> sheets = new ArrayList<>();
+		
+		// Extract data from the source pdf file
+		ExtractedData extractedData = PdfConverter.extractFromFile(sourcePdfIPStream, textBlockIdentifier);
+		
+		// Sort Data
+		SortedData sortedData = PdfConverter.sortExtractedData(extractedData, lineAxis, columnAxis);
+		
+		// Create 2D array pages containing information
+		ArrayList<XclPage> excelPages = PdfConverter.createExcelPages(sortedData);
+		
+		// Create sheets for each pages
+		int page = 1;
+		for (XclPage excelPage : excelPages)
+		{
+		HSSFSheet excelSheet = PdfConverter.createExcelSheet("page " + page, workbook, excelPage, lineFactor, columnFactor);
+		sheets.add(excelSheet);
+		page++;
+		}
+		
+		return sheets;
+	}
 
     /**
      * Convert a pdf file into an excel sheets
@@ -436,6 +492,11 @@ public class PdfConverter
     {
         return createExcelSheets(sourcePDFPath, workbook, new TextBlockIdentifier(), 0, 1, 0, 0);
     }
+    
+    public static ArrayList<HSSFSheet> createExcelSheets(InputStream sourcePdfIPStream, HSSFWorkbook workbook) throws IOException
+	{
+    	return createExcelSheets(sourcePdfIPStream, workbook, new TextBlockIdentifier(), 0, 1, 0, 0);
+	}
 
     /**
      * Create Excel file from pdf source
@@ -468,6 +529,27 @@ public class PdfConverter
         workbook.write(out);
         out.close();
     }
+    
+    public static void createExcelFile(InputStream sourcePdfIPStream, OutputStream targetExcelOSStream,
+            TextBlockIdentifier textBlockIdentifier,
+            int lineAxis,
+            int columnAxis,
+            double lineFactor,
+            double columnFactor) throws IOException
+	{
+		HSSFWorkbook workbook = new HSSFWorkbook();
+		
+		ArrayList<HSSFSheet> excelSheets = createExcelSheets(sourcePdfIPStream,
+		                                  workbook,
+		                                  textBlockIdentifier,
+		                                  lineAxis,
+		                                  columnAxis,
+		                                  lineFactor,
+		                                  columnFactor);
+			
+		workbook.write(targetExcelOSStream);
+		targetExcelOSStream.close();
+	}    
 
     /**
      * Create Excel file from pdf source
@@ -477,6 +559,15 @@ public class PdfConverter
     public static void createExcelFile(String sourcePDFPath, String xclPath) throws IOException
     {
         createExcelFile(sourcePDFPath, xclPath, new TextBlockIdentifier(),0, 1,0, 0);
+    }
+    
+    /***
+     * Create Excel file from PDF input stream
+     * @Param 
+     */
+    public static void createExcelFile(InputStream sourcePdfIPStream, OutputStream targetExcelOSStream) throws IOException
+    {
+    	createExcelFile(sourcePdfIPStream, targetExcelOSStream, new TextBlockIdentifier(),0, 1,0, 0);
     }
 
     /**
